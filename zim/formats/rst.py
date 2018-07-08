@@ -29,6 +29,7 @@ class Dumper(TextDumper):
 		XCHECKED_BOX: u'- \u2612', # ☒
 		CHECKED_BOX: u'- \u2611', # ☑
 		MIGRATED_BOX: u'- \u25B7', # ▷
+                ACTIVE_CHECKED_BOX: u'- \u0021', #!
 		BULLET: u'-',
 	}
 

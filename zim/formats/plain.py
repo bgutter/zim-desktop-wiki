@@ -65,6 +65,7 @@ class Dumper(DumperClass):
 
 	BULLETS = {
 		UNCHECKED_BOX: u'[ ]',
+                ACTIVE_CHECKED_BOX: u'[!]',
 		XCHECKED_BOX: u'[x]',
 		CHECKED_BOX: u'[*]',
 		MIGRATED_BOX: u'[>]',

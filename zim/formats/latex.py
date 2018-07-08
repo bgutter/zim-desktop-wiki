@@ -50,6 +50,7 @@ class Dumper(TextDumper):
 
 	BULLETS = {
 		UNCHECKED_BOX: '\\item[\\Square]',
+                ACTIVE_CHECKED_BOX: '\\item[!]',
 		XCHECKED_BOX: '\\item[\\XBox]',
 		CHECKED_BOX: '\\item[\\CheckedBox]',
 		MIGRATED_BOX: '\\item[\\RIGHTarrow]',
