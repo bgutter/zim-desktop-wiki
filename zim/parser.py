@@ -285,6 +285,36 @@ class ParserError(Error):
 		}
 			# T: Extended error message while parsing a file, gives file name, line number and words where error occurred
 
+class Clip(object):
+        '''Class that represents a subsection of text from a source document,
+        including the body of the text, and the span.
+        '''
+
+        @staticmethod
+        def from_parent_relative( clip, parent_begin, parent_end ):
+                '''
+                Create a new Clip as a subset of another clip. New clips
+                span will be absolute with regard to the parent's indexing,
+                but is constructed in terms of offsets relative to the
+                parent clip's text.
+                @param clip: Clip to subset
+                @param parent_begin: relative offset (from the beginning of the parent clip) to begin at
+                @param parent_end: relative offset (from the beginning of the parent clip) to end at
+                '''
+                abs_begin = clip.span[0] + parent_begin
+                clipped_text = clip.text[ parent_begin : parent_end ]
+                return Clip( clipped_text, abs_begin )
+
+        def __init__( self, text, offset ):
+                '''
+                @param text: the text to use
+                @param offset: the character index where this clip begins
+                '''
+                self.text = text
+                self.span = ( offset, offset + len( text ) )
+
+        def __str__( self ):
+                return self.text
 
 class Rule(object):
 	'''Class that defines a sigle parser rule. Typically used
@@ -330,14 +360,14 @@ class Rule(object):
 		'''
 		return Parser(self, other)
 
-	def _process(self, builder, text):
+	def _process(self, builder, clip):
 		# default action for matched text
 		if self.descent:
 			builder.start(self.tag)
-			self.descent(builder, *text)
+			self.descent(builder, *clip)
 			builder.end(self.tag)
 		else:
-			builder.append(self.tag, None, text)
+			builder.append(self.tag, None, source_span=clip.span)
 
 
 class Parser(object):
@@ -386,17 +416,17 @@ class Parser(object):
 			# Return extended copy, not modify self
 			# __init__ of new instance will make a copy of our rules
 
-	def __call__(self, builder, text):
+	def __call__(self, builder, clip):
 		'''Each parser object is callable so it can be used as a
 		processing function in any other parser object. This method
 		parses the given text and calls the apropriate methods of the
 		L{Builder} object to construct the parse results.
 
 		@param builder: a L{Builder} object
-		@param text: to be parsed text as string
+		@param clip: Clip to be parsed text as string
 		'''
 
-		assert text, 'BUG: processing empty string'
+		assert clip, 'BUG: processing empty string'
 		if self._re is None:
 			# Generate the regex and cache it for re-use
 			self.rules = tuple(self.rules) # freeze list
@@ -408,25 +438,32 @@ class Parser(object):
 			self._re = re.compile(pattern, re.U | re.M | re.X)
 
 		iter = 0
-		end = len(text)
-		for match in self._re.finditer(text):
+		end = len(clip.text)
+		for match in self._re.finditer(clip.text):
 			mstart, mend = match.span()
 			if mstart > iter:
 				try:
-					self.process_unmatched(builder, text[iter:mstart])
+					self.process_unmatched(builder, Clip.from_parent_relative( clip, iter, mstart))
 				except Exception as error:
-					self._raise_exception(error, text, iter, mstart, builder)
+					self._raise_exception(error, clip.text, iter, mstart, builder)
 
 			name = match.lastgroup # named outer group
 			i = int(name[4:]) # name is e.g. "rule1"
-			groups = [g for g in match.groups() if g is not None]
-			if len(groups) > 1:
-				groups.pop(0) # get rid of named outer group if inner groups are defined
+                        clips = []
+                        for j in range( 1, len( match.groups() ) ):
+                                text = match.group( j )
+                                if text is None:
+                                        continue
+                                span = match.span( j )
+                                clips.append( Clip.from_parent_relative( clip, mstart + span[0], mstart + span[1] ) )
+			# groups = [g for g in match.groups() if g is not None]
+			# if len(groups) > 1:
+				# groups.pop(0) # get rid of named outer group if inner groups are defined
 
 			try:
-				self.rules[i].process(builder, *groups)
+				self.rules[i].process(builder, *clips)
 			except Exception as error:
-				self._raise_exception(error, text, mstart, mend, builder, self.rules[i])
+				self._raise_exception(error, clip.text, mstart, mend, builder, self.rules[i])
 
 			iter = mend
 
@@ -434,9 +471,9 @@ class Parser(object):
 			# no more matches
 			if iter < end:
 				try:
-					self.process_unmatched(builder, text[iter:])
+					self.process_unmatched(builder, Clip.from_parent_relative( clip, iter, len(clip.text) - iter))
 				except Exception as error:
-					self._raise_exception(error, text, iter, end, builder)
+					self._raise_exception(error, clip.text, iter, end, builder)
 
 	parse = __call__
 

@@ -314,16 +314,19 @@ class WikiParser(object):
 
 		builder.end(TABLE)
 
-	def parse_para(self, builder, text):
+	def parse_para(self, builder, clip):
 		'''Split a text into paragraphs and empty lines'''
-		if text.isspace():
-			builder.text(text)
+                print "!!!PARSING", clip.text, "in range", clip.span
+		if clip.text.isspace():
+			builder.text(clip)
 		else:
-			for block in empty_lines_re.split(text):
+                        rel_offset = 0
+			for block in empty_lines_re.split(clip.text):
+                                split_clip = Clip.from_parent_relative( clip, rel_offset, len(block))
 				if not block: # empty string due to split
 					pass
 				elif block.isspace():
-					builder.text(block)
+					builder.text( split_clip )
 				elif self.backward \
 				and not unindented_line_re.search(block):
 					# Before zim 0.29 all indented paragraphs were
@@ -332,14 +335,16 @@ class WikiParser(object):
 				else:
 					block = convert_space_to_tab(block)
 					builder.start(PARAGRAPH)
-					self.list_and_indent_parser(builder, block)
+					self.list_and_indent_parser(builder, split_clip)
 					builder.end(PARAGRAPH)
+                                rel_offset += len( block )
 
 	def parse_list(self, builder, text, indent=None):
 		'''Parse lists into items and recurse to get inline formatting
 		per list item
 		'''
 		if indent:
+                        print "TEXT,INDENT", ( text, indent )
 			text = _remove_indent(text, indent)
 			attrib = {'indent': len(indent)}
 		else:
@@ -462,7 +467,7 @@ class Parser(ParserClass):
 
 		builder = ParseTreeBuilder(partial=partial)
 		wikiparser.backward = backward or self.backward # HACK
-		wikiparser(builder, input)
+		wikiparser(builder, Clip( input, 0 ) )
 
 		parsetree = builder.get_parsetree()
 		if meta is not None:
